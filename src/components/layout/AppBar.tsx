@@ -1,10 +1,23 @@
 import React, { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import {
+  type User,
+  useLogin,
+  usePrivy,
+  useWallets,
+  type ConnectedWallet,
+} from "@privy-io/react-auth";
 import { useRouter } from "next/router";
 import { Link } from "@chakra-ui/next-js";
 
-import { BellIcon, HamburgerIcon, SettingsIcon } from "@chakra-ui/icons";
 import {
+  BellIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  HamburgerIcon,
+  SettingsIcon,
+} from "@chakra-ui/icons";
+import {
+  Avatar,
   Box,
   Button,
   Drawer,
@@ -15,13 +28,21 @@ import {
   DrawerHeader,
   DrawerOverlay,
   Flex,
+  Heading,
   Icon,
   IconButton,
   List,
   ListItem,
   Text,
+  useClipboard,
   useDisclosure,
+  useToast,
 } from "@chakra-ui/react";
+import { usePrivyWagmi } from "@privy-io/wagmi-connector";
+import { shortenAddress } from "~/lib/string";
+import config from "~/config";
+
+const appChainId = parseInt(process.env.NEXT_PUBLIC_APP_CHAIN_ID ?? "137");
 
 export const APPBAR_HEIGHT_PX = 56;
 export const NAVBAR_HEIGHT_PX = 72;
@@ -32,17 +53,25 @@ export interface AppBarProps {
 }
 
 type MenuDrawerProps = {
+  userWallet: ConnectedWallet | undefined;
   authenticated: boolean;
   isLoading: boolean;
-  onSignoutHandler: () => void;
+  loginHandler: () => void;
+  logoutHandler: () => void;
+  user: User | null;
 };
 
 const MenuDrawer = ({
+  userWallet,
   authenticated,
   isLoading,
-  onSignoutHandler,
+  loginHandler,
+  logoutHandler,
+  user,
 }: MenuDrawerProps) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { onCopy } = useClipboard(userWallet?.address ?? "");
+  const toast = useToast();
   const btnRef = React.useRef<HTMLButtonElement>(null);
 
   return (
@@ -83,8 +112,74 @@ const MenuDrawer = ({
             color="ldWhiteBeige"
             _hover={{ background: "transparent", color: "primary" }}
           />
-          <DrawerHeader color="primary" fontSize={["2xl"]}>
-            Menu
+          <DrawerHeader fontSize={["2xl"]}>
+            {userWallet?.address ? (
+              <Flex width="100%">
+                <Link href={`/u/${userWallet?.address}`}>
+                  <Avatar
+                    size="lg"
+                    name={user?.google?.name ?? "anon lurker"}
+                    src={"/avatars/placeholder.svg"}
+                    onClick={onOpen}
+                    left={0}
+                  />
+                </Link>
+                <Flex
+                  flexDirection="column"
+                  justifyContent="center"
+                  px={2}
+                  width="100%"
+                >
+                  <Heading fontSize={["xl"]} fontWeight="semibold">
+                    {user?.google?.name ?? "anon lurker"}
+                  </Heading>
+                  <Flex
+                    alignItems="center"
+                    justifyContent="space-between"
+                    width="100%"
+                    mt={1.5}
+                    pr={8}
+                    pl={2}
+                  >
+                    <Heading fontSize={["lg"]} fontWeight="normal">
+                      {shortenAddress(userWallet?.address as `0x${string}`)}
+                    </Heading>
+                    <Flex gap={4}>
+                      <Link
+                        href={`${config.blockExplorers.mumbai.explorer}/address/${userWallet?.address}`}
+                        display="flex"
+                        w="full"
+                        alignItems="center"
+                        gap={2}
+                        onClick={onClose}
+                        target="_blank"
+                      >
+                        <IconButton
+                          aria-label="View wallet on block explorer"
+                          icon={<ExternalLinkIcon />}
+                          isRound={true}
+                          size="sm"
+                        />
+                      </Link>
+                      <IconButton
+                        aria-label="Copy wallet address to clipboard"
+                        icon={<CopyIcon />}
+                        isRound={true}
+                        size="sm"
+                        onClick={() => {
+                          onCopy();
+                          toast({
+                            status: "info",
+                            description: "Address copied to clipboard",
+                            isClosable: true,
+                          });
+                        }}
+                      />
+                    </Flex>
+                  </Flex>
+                </Flex>
+              </Flex>
+            ) : null}
           </DrawerHeader>
           <DrawerBody px={12}>
             <List spacing={4} fontSize={["xl"]}>
@@ -92,7 +187,7 @@ const MenuDrawer = ({
                 <>
                   <ListItem display="flex" alignItems="center">
                     <Link
-                      href="/micuenta"
+                      href="#"
                       display="flex"
                       w="full"
                       alignItems="center"
@@ -190,18 +285,14 @@ const MenuDrawer = ({
             </List>
             {!authenticated && (
               <Flex px={12} mt={8}>
-                <Link
-                  href="/ingresar"
-                  display="flex"
-                  w="full"
-                  alignItems="center"
-                  gap={4}
-                  onClick={onClose}
+                <Button
+                  variant="primary"
+                  size={["lg", null, "md"]}
+                  width="full"
+                  onClick={loginHandler}
                 >
-                  <Button variant="primary" size={["lg", null, "md"]} w="full">
-                    Login
-                  </Button>
-                </Link>
+                  Login
+                </Button>
               </Flex>
             )}
           </DrawerBody>
@@ -212,7 +303,7 @@ const MenuDrawer = ({
                 size={["lg", null, "md"]}
                 w="full"
                 onClick={() => {
-                  onSignoutHandler();
+                  logoutHandler();
                   onClose();
                 }}
                 isLoading={isLoading}
@@ -232,13 +323,63 @@ const MenuDrawer = ({
 export const AppBar: React.FC<AppBarProps> = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { push } = useRouter();
-  const { authenticated, logout } = usePrivy();
+  const { authenticated, connectWallet, logout, user } = usePrivy();
+  const toast = useToast;
+
+  const { wallets } = useWallets();
+  const { wallet: activeWallet, setActiveWallet } = usePrivyWagmi();
+
+  const embeddedWallet = wallets.find(
+    (wallet) => wallet.walletClientType === "privy"
+  );
+
+  const { login } = useLogin({
+    onComplete: (user, isNewUser) => {
+      const embeddedWallet = wallets.find(
+        (wallet) => wallet.walletClientType === "privy"
+      );
+      console.log("wallet activa!!", activeWallet);
+      if (!embeddedWallet) {
+        console.log("No embedded wallet found");
+        void handleLogout();
+        return;
+      }
+
+      connectWallet();
+      setActiveWallet(embeddedWallet)
+        .then((res) => {
+          console.log("SET ACTIVE WALLET!!!", res);
+
+          if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
+            void activeWallet?.switchChain(appChainId);
+          }
+          if (isNewUser) {
+            console.log("NEW USER logged in!");
+          }
+          console.log("user data:", user);
+          void push(`/u/${embeddedWallet?.address}`);
+        })
+        .catch((error) => console.error(error));
+
+      // if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
+      //   void activeWallet?.switchChain(appChainId);
+      // }
+      // if (isNewUser) {
+      //   console.log("NEW USER logged in!");
+      // }
+      // console.log("user data:", user);
+      // void push(`/u/${embeddedWallet?.address}`);
+    },
+    onError: (error) => {
+      console.error(error);
+    },
+  });
 
   const handleLogout = async () => {
     setIsLoading(true);
     try {
       await logout();
-      await push("/ingresar");
+      await push("/");
     } catch (error) {
       console.error(error);
     } finally {
@@ -272,9 +413,12 @@ export const AppBar: React.FC<AppBarProps> = () => {
         </Link>
         <Flex alignItems="center" gap={4}>
           <MenuDrawer
+            userWallet={embeddedWallet}
             authenticated={authenticated}
             isLoading={isLoading}
-            onSignoutHandler={() => void handleLogout()}
+            loginHandler={login}
+            logoutHandler={() => void handleLogout()}
+            user={user}
           />
         </Flex>
       </Box>
