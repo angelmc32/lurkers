@@ -4,10 +4,15 @@ import {
   useLogin,
   usePrivy,
   useWallets,
-  type ConnectedWallet,
+  type Wallet,
 } from "@privy-io/react-auth";
 import { useRouter } from "next/router";
 import { Link } from "@chakra-ui/next-js";
+import { useLogin as useLensLogin } from "@lens-protocol/react-web";
+import {
+  useExploreProfiles,
+  ExploreProfilesOrderByType,
+} from "@lens-protocol/react";
 
 import {
   BellIcon,
@@ -42,7 +47,7 @@ import { usePrivyWagmi } from "@privy-io/wagmi-connector";
 import { shortenAddress } from "~/lib/string";
 import config from "~/config";
 
-const appChainId = parseInt(process.env.NEXT_PUBLIC_APP_CHAIN_ID ?? "137");
+const appChainId = parseInt(process.env.NEXT_PUBLIC_APP_CHAIN_ID ?? "80001");
 
 export const APPBAR_HEIGHT_PX = 56;
 export const NAVBAR_HEIGHT_PX = 72;
@@ -53,7 +58,7 @@ export interface AppBarProps {
 }
 
 type MenuDrawerProps = {
-  userWallet: ConnectedWallet | undefined;
+  userWallet: Wallet | undefined;
   authenticated: boolean;
   isLoading: boolean;
   loginHandler: () => void;
@@ -323,43 +328,55 @@ const MenuDrawer = ({
 export const AppBar: React.FC<AppBarProps> = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { push } = useRouter();
-  const { authenticated, connectWallet, logout, user } = usePrivy();
-  const toast = useToast;
+  const { authenticated, logout, user } = usePrivy();
+  const { execute: loginWithLens } = useLensLogin();
 
   const { wallets } = useWallets();
-  const { wallet: activeWallet, setActiveWallet } = usePrivyWagmi();
+  // const { wallet: activeWallet, setActiveWallet } = usePrivyWagmi();
 
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
-  );
+  // const embeddedWallet = wallets.find(
+  //   (wallet) => wallet.walletClientType === "privy"
+  // );
 
-  const { login } = useLogin({
+  const { login: loginWithPrivy } = useLogin({
     onComplete: (user, isNewUser) => {
-      const embeddedWallet = wallets.find(
-        (wallet) => wallet.walletClientType === "privy"
-      );
-      console.log("wallet activa!!", activeWallet);
-      if (!embeddedWallet) {
-        console.log("No embedded wallet found");
+      // const embeddedWallet = wallets.find(
+      //   (wallet) => wallet.walletClientType === "privy"
+      // );
+      // console.log("wallet activa!!", activeWallet);
+      // if (!wallets || wallets.length < 1 || !user.wallet || !user.wallet) {
+      if (!user.wallet) {
+        console.log("No wallet found");
         void handleLogout();
         return;
       }
 
-      connectWallet();
-      setActiveWallet(embeddedWallet)
-        .then((res) => {
-          console.log("SET ACTIVE WALLET!!!", res);
+      console.log("user: ", user);
+      const loggedIn = loginWithLens({
+        // address: wallets[0].address,
+        address: user.wallet?.address,
+      });
+      console.log("loggedIn: ", loggedIn);
+      window.scrollTo({ top: 0, behavior: "smooth" });
 
-          if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
-            void activeWallet?.switchChain(appChainId);
-          }
-          if (isNewUser) {
-            console.log("NEW USER logged in!");
-          }
-          console.log("user data:", user);
-          void push(`/u/${embeddedWallet?.address}`);
-        })
-        .catch((error) => console.error(error));
+      void push(`/u/${wallets[0]?.address}`);
+
+      // connectWallet();
+      // setActiveWallet(wallets[0]!)
+      //   .then((res) => {
+      //     console.log("set active wallet response:", res);
+
+      //     if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
+      //       void activeWallet?.switchChain(appChainId);
+      //     }
+      //     if (isNewUser) {
+      //       console.log("NEW USER logged in!");
+      //     }
+      //     console.log("user data:", user);
+
+      //     void push(`/u/${wallets[0]?.address}`);
+      //   })
+      //   .catch((error) => console.error(error));
 
       // if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
       //   void activeWallet?.switchChain(appChainId);
@@ -412,11 +429,12 @@ export const AppBar: React.FC<AppBarProps> = () => {
           </Text>
         </Link>
         <Flex alignItems="center" gap={4}>
+          {authenticated && <Button>Post</Button>}
           <MenuDrawer
-            userWallet={embeddedWallet}
+            userWallet={user?.wallet}
             authenticated={authenticated}
             isLoading={isLoading}
-            loginHandler={login}
+            loginHandler={loginWithPrivy}
             logoutHandler={() => void handleLogout()}
             user={user}
           />

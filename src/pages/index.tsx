@@ -35,13 +35,6 @@ const Home = () => {
               for your eyes only
             </Heading>
           </VStack>
-          <Flex justifyContent="center" py={16}>
-            <Link href="/ingresar">
-              <Button px={8} py={4} variant="primary" fontSize="xl" size="lg">
-                Login
-              </Button>
-            </Link>
-          </Flex>
           <Flex justifyContent="center">
             <Button
               px={8}
