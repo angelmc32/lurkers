@@ -1,13 +1,24 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   type User,
   useLogin,
   usePrivy,
   useWallets,
-  type ConnectedWallet,
+  type Wallet,
 } from "@privy-io/react-auth";
 import { useRouter } from "next/router";
 import { Link } from "@chakra-ui/next-js";
+import {
+  SessionType,
+  useClaimHandle,
+  useLogin as useLensLogin,
+  useSession,
+} from "@lens-protocol/react-web";
+
+// import {
+//   useExploreProfiles,
+//   ExploreProfilesOrderByType,
+// } from "@lens-protocol/react";
 
 import {
   BellIcon,
@@ -38,11 +49,11 @@ import {
   useDisclosure,
   useToast,
 } from "@chakra-ui/react";
-import { usePrivyWagmi } from "@privy-io/wagmi-connector";
+// import { usePrivyWagmi } from "@privy-io/wagmi-connector";
 import { shortenAddress } from "~/lib/string";
 import config from "~/config";
 
-const appChainId = parseInt(process.env.NEXT_PUBLIC_APP_CHAIN_ID ?? "137");
+const appChainId = parseInt(process.env.NEXT_PUBLIC_APP_CHAIN_ID ?? "80001");
 
 export const APPBAR_HEIGHT_PX = 56;
 export const NAVBAR_HEIGHT_PX = 72;
@@ -53,7 +64,7 @@ export interface AppBarProps {
 }
 
 type MenuDrawerProps = {
-  userWallet: ConnectedWallet | undefined;
+  userWallet: Wallet | undefined;
   authenticated: boolean;
   isLoading: boolean;
   loginHandler: () => void;
@@ -324,42 +335,70 @@ export const AppBar: React.FC<AppBarProps> = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { push } = useRouter();
   const { authenticated, connectWallet, logout, user } = usePrivy();
-  const toast = useToast;
+  const { execute: loginWithLens } = useLensLogin();
+  const { data: lensLoginSession, loading: isLoadingLensSession } =
+    useSession();
+  const { execute: claimLensHandle } = useClaimHandle();
 
   const { wallets } = useWallets();
-  const { wallet: activeWallet, setActiveWallet } = usePrivyWagmi();
+  // const { wallet: activeWallet, setActiveWallet } = usePrivyWagmi();
 
-  const embeddedWallet = wallets.find(
-    (wallet) => wallet.walletClientType === "privy"
-  );
+  // const embeddedWallet = wallets.find(
+  //   (wallet) => wallet.walletClientType === "privy"
+  // );
 
-  const { login } = useLogin({
+  const { login: loginWithPrivy } = useLogin({
     onComplete: (user, isNewUser) => {
       const embeddedWallet = wallets.find(
         (wallet) => wallet.walletClientType === "privy"
       );
-      console.log("wallet activa!!", activeWallet);
-      if (!embeddedWallet) {
-        console.log("No embedded wallet found");
+      // const metamaskWallet = wallets.find(
+      //   (wallet) => wallet.walletClientType === "metamask"
+      // );
+      // console.log("wallet activa!!", activeWallet);
+      // if (!wallets || wallets.length < 1 || !user.wallet || !user.wallet) {
+      // if (!user.wallet) {
+      //   console.log("No wallet found");
+      //   void handleLogout();
+      //   return;
+      // }
+
+      console.log("user: ", user);
+      if (!embeddedWallet || !user.wallet) {
+        console.log("No wallet found");
         void handleLogout();
         return;
       }
-
-      connectWallet();
-      setActiveWallet(embeddedWallet)
-        .then((res) => {
-          console.log("SET ACTIVE WALLET!!!", res);
-
-          if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
-            void activeWallet?.switchChain(appChainId);
+      loginWithLens({
+        // address: wallets[0].address,
+        address: embeddedWallet.address,
+      })
+        .then((isAuthWithLens) => {
+          console.log("loggedIn: ", isAuthWithLens);
+          if (isAuthWithLens.isFailure()) {
           }
-          if (isNewUser) {
-            console.log("NEW USER logged in!");
-          }
-          console.log("user data:", user);
-          void push(`/u/${embeddedWallet?.address}`);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+
+          // void push(`/u/${wallets[0]?.address}`);
         })
         .catch((error) => console.error(error));
+
+      connectWallet();
+      // setActiveWallet(metamaskWallet!)
+      //   .then((res) => {
+      //     console.log("set active wallet response:", res);
+
+      //     // if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
+      //     //   void activeWallet?.switchChain(appChainId);
+      //     // }
+      //     if (isNewUser) {
+      //       console.log("NEW USER logged in!");
+      //     }
+      //     console.log("user data:", user);
+
+      //     void push(`/u/${wallets[0]?.address}`);
+      //   })
+      //   .catch((error) => console.error(error));
 
       // if (parseInt(activeWallet?.chainId ?? "0") !== appChainId) {
       //   void activeWallet?.switchChain(appChainId);
@@ -387,6 +426,36 @@ export const AppBar: React.FC<AppBarProps> = () => {
     }
   };
 
+  // const switchWallet = async () => {
+  //   const embeddedWallet = wallets.find(
+  //     (wallet) => wallet.walletClientType === "privy"
+  //   );
+  //   const metamaskWallet = wallets.find(
+  //     (wallet) => wallet.walletClientType === "metamask"
+  //   );
+  //   console.log(metamaskWallet);
+  //   if (!metamaskWallet) {
+  //     console.log("No wallet found");
+  //     return;
+  //   }
+  //   await loginWithLens({
+  //     address: metamaskWallet.address,
+  //   });
+  // };
+
+  const handleClaimLensHandle = async () => {
+    const result = await claimLensHandle({
+      localName: "anothertrye",
+    });
+    console.log(result);
+  };
+
+  useEffect(() => {
+    if (lensLoginSession) {
+      console.log(lensLoginSession);
+    }
+  }, [lensLoginSession]);
+
   return (
     <Box
       as="nav"
@@ -412,11 +481,30 @@ export const AppBar: React.FC<AppBarProps> = () => {
           </Text>
         </Link>
         <Flex alignItems="center" gap={4}>
+          {authenticated && (
+            <Flex gap={4}>
+              {authenticated &&
+                lensLoginSession?.type === SessionType.JustWallet && (
+                  <Button onClick={() => void handleClaimLensHandle()}>
+                    Claim handle
+                  </Button>
+                )}
+              {/* {lensLoginSession?.authenticated &&
+                lensLoginSession?.type !== SessionType.JustWallet && (
+                  <Button>Claim handle</Button>
+                )} */}
+              {lensLoginSession?.authenticated && lensLoginSession.address && (
+                <Button isDisabled onClick={() => console.log("trigger post")}>
+                  Post
+                </Button>
+              )}
+            </Flex>
+          )}
           <MenuDrawer
-            userWallet={embeddedWallet}
+            userWallet={user?.wallet}
             authenticated={authenticated}
             isLoading={isLoading}
-            loginHandler={login}
+            loginHandler={loginWithPrivy}
             logoutHandler={() => void handleLogout()}
             user={user}
           />

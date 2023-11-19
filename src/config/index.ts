@@ -48,10 +48,27 @@ const blockExplorers: BlockExplorers = {
   mumbai: { explorer: "https://polygonscan.com" },
 };
 
+// RPC
+type LensApiEndpoints = Record<
+  AvailableNetworks,
+  {
+    http: string;
+  }
+>;
+const lensApiEndpoints: LensApiEndpoints = {
+  polygon: {
+    http: "https://api-v2.lens.dev",
+  },
+  mumbai: {
+    http: "https://api-v2-mumbai.lens.dev/",
+  },
+};
+
 const config = {
   rpcs,
   addresses,
   blockExplorers,
+  lensApiEndpoints,
 } as const;
 
 export default config;

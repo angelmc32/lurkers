@@ -1,9 +1,28 @@
 import { Button, Flex, Heading, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@chakra-ui/next-js";
 
+import {
+  useExplorePublications,
+  ExplorePublicationsOrderByType,
+  ExplorePublicationType,
+} from "@lens-protocol/react";
+
 import { PageWithAppBar } from "~/components/layout/AppBar";
 
 const Home = () => {
+  const {
+    data: posts,
+    error,
+    loading,
+  } = useExplorePublications({
+    where: {
+      publicationTypes: [ExplorePublicationType.Post],
+    },
+    orderBy: ExplorePublicationsOrderByType.TopCommented,
+  });
+
+  console.log(posts);
+
   return (
     <>
       <PageWithAppBar>
@@ -35,13 +54,6 @@ const Home = () => {
               for your eyes only
             </Heading>
           </VStack>
-          <Flex justifyContent="center" py={16}>
-            <Link href="/ingresar">
-              <Button px={8} py={4} variant="primary" fontSize="xl" size="lg">
-                Login
-              </Button>
-            </Link>
-          </Flex>
           <Flex justifyContent="center">
             <Button
               px={8}
