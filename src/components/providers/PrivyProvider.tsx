@@ -3,7 +3,7 @@ import { PrivyProvider } from "@privy-io/react-auth";
 export default function Provider({ children }) {
   return (
     <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
+      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? ""}
       config={{
         loginMethods: ["email", "wallet", "google", "apple"],
         appearance: {
