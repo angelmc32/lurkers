@@ -1,9 +1,28 @@
 import { Button, Flex, Heading, Text, VStack } from "@chakra-ui/react";
 import { Link } from "@chakra-ui/next-js";
 
+import {
+  useExplorePublications,
+  ExplorePublicationsOrderByType,
+  ExplorePublicationType,
+} from "@lens-protocol/react";
+
 import { PageWithAppBar } from "~/components/layout/AppBar";
 
 const Home = () => {
+  const {
+    data: posts,
+    error,
+    loading,
+  } = useExplorePublications({
+    where: {
+      publicationTypes: [ExplorePublicationType.Post],
+    },
+    orderBy: ExplorePublicationsOrderByType.TopCommented,
+  });
+
+  console.log(posts);
+
   return (
     <>
       <PageWithAppBar>
